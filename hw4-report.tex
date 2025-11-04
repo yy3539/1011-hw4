@@ -1,0 +1,158 @@
+\documentclass{article}
+
+\input{header}
+
+\title{DSGA 1011: Assignment 4}
+
+\author{Full Name \\ Net ID}
+
+\date{}
+
+
+\colmfinalcopy
+\begin{document}
+\maketitle
+% \section*{Part I. Q1} No written element, submit \texttt{out\_original.txt}  to autograder.
+\section*{Q0. 1.}
+Please provide a link to your github repository, which contains the code for both Part I and Part II. \textcolor{gray}{TODO}
+\section*{Q2. 1.}
+Describe your transformation of dataset.
+\textcolor{gray}{TODO}
+% \section*{Part I. Q2. 2. No written element, submit \texttt{out\_transformed.txt} to autograder. }
+\section*{Q3. 1}
+\textbf{Report \& Analysis}
+    \begin{itemize}
+        \item Report the accuracy values for both the original and transformed test data evaluations.  \textcolor{gray}{TODO}
+        \item Analyze and discuss the following: (1) Did the model's performance on the transformed test data improve after applying data augmentation? (2) How did data augmentation affect the model's performance on the original test data? Did it enhance or diminish its accuracy? \textcolor{gray}{TODO}
+        \item Offer an intuitive explanation for the observed results, considering the impact of data augmentation on model training. \textcolor{gray}{TODO}
+        \item Explain one limitation of the data augmentation approach used here to improve performance on out-of-distribution (OOD) test sets. \textcolor{gray}{TODO}
+    \end{itemize}
+\section*{Part II. Q4}
+% 
+% \section{Data Statistics and Processing (8pt)}
+
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{lcc}
+\toprule
+Statistics Name & Train & Dev \\
+\midrule
+Number of examples & \textcolor{gray}{XXX} & \textcolor{gray}{XXX} \\
+Mean sentence length & \textcolor{gray}{XXX}& \textcolor{gray}{XXX} \\
+Mean SQL query length & \textcolor{gray}{XXX}& \textcolor{gray}{XXX}  \\
+Vocabulary size (natural language)& \textcolor{gray}{XXX}& \textcolor{gray}{XXX}  \\
+Vocabulary size (SQL)& \textcolor{gray}{XXX}& \textcolor{gray}{XXX}  \\
+\bottomrule
+\end{tabular}
+\caption{Data statistics before any pre-processing. \textcolor{gray}{You need to at least provide the statistics listed above, and can add new entries.}}
+\label{tab:data_stats_before}
+\end{table}
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{lcc}
+\toprule
+Statistics Name & Train & Dev \\
+\midrule
+\multicolumn{3}{l}{\textbf{T5 fine-tuned model}} \\ % \textcolor{gray}{(T5 fine-tuning or T5 from scratch)}} \\
+\textcolor{gray}{Statistics Name} & \textcolor{gray}{XXX}& \textcolor{gray}{XXX} \\
+\midrule
+\bottomrule
+\end{tabular}
+\caption{Data statistics after pre-processing. \textcolor{gray}{You need to at least provide the statistics listed in \autoref{tab:data_stats_before} (except for the number of lines), and can add new entries.}}
+\label{tab:data_stats_after}
+\end{table}
+
+
+
+\newpage
+
+
+
+
+\section*{Q5}\label{sec:t5}
+
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{p{3.5cm}p{10cm}}
+\toprule
+Design choice & Description \\
+\midrule
+Data processing & \textcolor{gray}{Describe the data processing steps you undertook, if any.} \\
+Tokenization & \textcolor{gray}{Describe how you did the tokenization for the inputs to the encoder and decoder. If you use anything else than the default T5 tokenizer, specify what you use, and why you choose to use it.} \\
+Architecture & \textcolor{gray}{Describe the components in the T5 architecture that you chose to fine-tune. Did you fine-tune the entire model, specific layers?} \\
+Hyperparameters & \textcolor{gray}{List the key hyperparameters that you used, including the learning rate, batch size, and stopping criteria.} \\
+\bottomrule
+\end{tabular}
+\caption{Details of the best-performing T5 model configurations (fine-tuned)}
+\label{tab:t5_results_ft}
+\end{table}
+
+
+
+
+
+
+
+\section*{Q6. }
+
+\paragraph{Quantitative Results:} 
+\begin{table}[h!]
+\centering
+\begin{tabular}{lcc}
+  \toprule
+  System & Query EM & F1 score\\
+  \midrule
+  \multicolumn{3}{l}{\textbf{Dev Results}} \\
+  \midrule
+  
+  \multicolumn{3}{l}{\textbf{T5 fine-tuned}} \\
+  Full model & XX.XX & XX.XX \\[5pt]
+  % Variant1 & XX.XX & XX.XX \\
+  % Variant2 & XX.XX & XX.XX \\
+  % Variant3 & XX.XX & XX.XX \\
+  
+  \midrule
+  \multicolumn{3}{l}{\textbf{Test Results}} \\
+  \midrule
+  T5 fine-tuning & XX.XX & XX.XX \\
+  \bottomrule
+\end{tabular}  
+\caption{Development and test results. \textcolor{gray}{Use this table to report quantitative results for both dev and test results.}}
+\label{tab:results}
+\end{table}
+
+
+\paragraph{Qualitative Error Analysis:} 
+
+
+\begin{landscape}
+\begin{table}
+  \centering
+  \begin{tabular}{p{2cm}p{6cm}p{6cm}p{6cm}}
+    \toprule
+    \textbf{Error Type}& \textbf{Example Of Error} & \textbf{Error Description} & \textbf{Statistics} \\
+    \midrule
+    \textcolor{gray}{Error name}  & \textcolor{gray}{Snippet from datapoint examplifying error} & \textcolor{gray}{Describe the error in natural language} & \textcolor{gray}{Provide statistics in the form ``COUNT/TOTAL'' on the prevalence of the error. TOTAL is the number of relevant examples (e.g. number of queries, for query-level error), and COUNT is the number of examples that showed this error.}  \\
+    
+    \midrule
+    &  &   & \\
+    \bottomrule
+  \end{tabular}
+  \label{tab:qualitative}
+  \caption{Use this table for your qualitative analysis on the dev set.}\label{tab:qualitative}
+\end{table}
+\end{landscape}
+
+\section*{Q7.}
+
+Provide a link to a google drive which contains a model checkpoint used to generate outputs you have submitted. 
+\textcolor{gray}{TODO}
+
+\section*{Extra Credit: }
+
+If you are doing extra credit assignment, please describe your system here, as well as provide a link to a google drive which contains a model checkpoint used to generate outputs you have submitted. 
+\textcolor{gray}{Optional TODO}
+\end{document}
