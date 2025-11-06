@@ -94,8 +94,6 @@ def do_eval(eval_dataloader, output_dir, out_file):
 
 # Created a dataladoer for the augmented training dataset
 def create_augmented_dataloader(args, dataset):
-    ################################
-    ##### YOUR CODE BEGINGS HERE ###
     from datasets import concatenate_datasets
 
     # 1) select 5,000 random transformed examples
@@ -111,13 +109,13 @@ def create_augmented_dataloader(args, dataset):
         tokenize_function,
         batched=True,
         load_from_cache_file=False,
-        keep_in_memory=True,   # 避免写缓存
+        keep_in_memory=True,   
     )
     trans_tok = transformed.map(
         tokenize_function,
         batched=True,
         load_from_cache_file=False,
-        keep_in_memory=True,   # 避免写缓存
+        keep_in_memory=True, 
     )
 
     # 3) Prepare dataset for use by model, same as code below
@@ -138,7 +136,7 @@ def create_augmented_dataloader(args, dataset):
 
     # 5) return
     train_dataloader = DataLoader(aug_train, shuffle=True, batch_size=args.batch_size)
-    ##### YOUR CODE ENDS HERE ######
+
     return train_dataloader
 
 
