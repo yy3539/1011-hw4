@@ -28,6 +28,9 @@ def tokenize_function(examples):
 
 # Core training function
 def do_train(args, model, train_dataloader, save_dir="./out"):
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    model.to(device)
+    
     optimizer = AdamW(model.parameters(), lr=args.learning_rate)
     num_epochs = args.num_epochs
     num_training_steps = num_epochs * len(train_dataloader)
@@ -37,18 +40,23 @@ def do_train(args, model, train_dataloader, save_dir="./out"):
     model.train()
     progress_bar = tqdm(range(num_training_steps))
 
-    ################################
-    ##### YOUR CODE BEGINGS HERE ###
+    for epoch in range(num_epochs):
+        running_loss = 0.0
+        for batch in train_dataloader:
+            batch = {k: v.to(device) for k, v in batch.items()}
+            outputs = model(**batch)        
+            loss = outputs.loss
+            optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
+            lr_scheduler.step()
 
-    # Implement the training loop --- make sure to use the optimizer and lr_sceduler (learning rate scheduler)
-    # Remember that pytorch uses gradient accumumlation so you need to use zero_grad (https://pytorch.org/tutorials/recipes/recipes/zeroing_out_gradients.html)
-    # You can use progress_bar.update(1) to see the progress during training
-    # You can refer to the pytorch tutorial covered in class for reference
+            running_loss += loss.item()
+            progress_bar.update(1)
 
-    raise NotImplementedError
-
-    ##### YOUR CODE ENDS HERE ######
-
+        avg_loss = running_loss / len(train_dataloader)
+        print(f"Epoch {epoch+1}/{num_epochs} - train loss: {avg_loss:.4f}")
     print("Training completed...")
     print("Saving Model....")
     model.save_pretrained(save_dir)
@@ -88,16 +96,51 @@ def do_eval(eval_dataloader, output_dir, out_file):
 def create_augmented_dataloader(args, dataset):
     ################################
     ##### YOUR CODE BEGINGS HERE ###
+    from datasets import concatenate_datasets
 
-    # Here, 'dataset' is the original dataset. You should return a dataloader called 'train_dataloader' -- this
-    # dataloader will be for the original training split augmented with 5k random transformed examples from the training set.
-    # You may find it helpful to see how the dataloader was created at other place in this code.
+    # 1) select 5,000 random transformed examples
+    sampled = dataset["train"].shuffle(seed=42).select(range(5000))
+    transformed = sampled.map(
+        custom_transform,
+        load_from_cache_file=False,
+        keep_in_memory=True,   
+    )
 
-    raise NotImplementedError
+    # 2) tokenize
+    orig_tok = dataset["train"].map(
+        tokenize_function,
+        batched=True,
+        load_from_cache_file=False,
+        keep_in_memory=True,   # 避免写缓存
+    )
+    trans_tok = transformed.map(
+        tokenize_function,
+        batched=True,
+        load_from_cache_file=False,
+        keep_in_memory=True,   # 避免写缓存
+    )
 
+    # 3) Prepare dataset for use by model, same as code below
+    if "text" in orig_tok.column_names:
+        orig_tok = orig_tok.remove_columns(["text"])
+    if "label" in orig_tok.column_names:
+        orig_tok = orig_tok.rename_column("label", "labels")
+    orig_tok.set_format("torch")
+
+    if "text" in trans_tok.column_names:
+        trans_tok = trans_tok.remove_columns(["text"])
+    if "label" in trans_tok.column_names:
+        trans_tok = trans_tok.rename_column("label", "labels")
+    trans_tok.set_format("torch")
+
+    # 4) concatenate
+    aug_train = concatenate_datasets([orig_tok, trans_tok])
+
+    # 5) return
+    train_dataloader = DataLoader(aug_train, shuffle=True, batch_size=args.batch_size)
     ##### YOUR CODE ENDS HERE ######
-
     return train_dataloader
+
 
 
 # Create a dataloader for the transformed test set

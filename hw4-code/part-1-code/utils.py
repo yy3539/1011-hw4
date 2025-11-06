@@ -35,17 +35,74 @@ def example_transform(example):
 
 
 def custom_transform(example):
-    ################################
-    ##### YOUR CODE BEGINGS HERE ###
+    text = example.get("text", "")
+    if not isinstance(text, str) or not text.strip():
+        return example
 
-    # Design and implement the transformation as mentioned in pdf
-    # You are free to implement any transformation but the comments at the top roughly describe
-    # how you could implement two of them --- synonym replacement and typos.
+    # typos and synonym
+    p_typo = 0.2
+    p_syn  = 0.2
 
-    # You should update example["text"] using your transformation
+    qwerty_neighbors_vowel = {
+        'a': 'qwsz',   
+        'e': 'wsdr',
+        'i': 'ujko',
+        'o': 'iklp',
+        'u': 'yhji'
+    }
 
-    raise NotImplementedError
+    tokens = word_tokenize(text)
+    detok = TreebankWordDetokenizer()
 
-    ##### YOUR CODE ENDS HERE ######
+    def add_simple_typo(w: str):
+        idxs = [i for i, ch in enumerate(w) if ch.lower() in qwerty_neighbors_vowel]
+        if not idxs:
+            return None
+        i = random.choice(idxs)
+        ch = w[i]
+        pool = qwerty_neighbors_vowel[ch.lower()]
+        rep = random.choice(pool)
+        if ch.isupper(): rep = rep.upper()
+        return w[:i] + rep + w[i+1:]
 
+    def synonym_replace(w: str):
+        if not w.isalpha():
+            return None
+        base = w.lower()
+        syns = wordnet.synsets(base)
+        if not syns:
+            return None
+        cands = []
+        for s in syns:
+            for l in s.lemmas():
+                cand = l.name().replace('_', ' ')
+                if cand.isalpha() and cand.lower() != base:
+                    cands.append(cand)
+        if not cands:
+            return None
+        rep = random.choice(cands)
+        if w[0].isupper():
+            rep = rep.capitalize()
+        return rep
+
+    out = []
+    for w in tokens:
+        changed = False
+        # random typo
+        if not changed and random.random() < p_typo:
+            tw = add_simple_typo(w)
+            if tw:
+                out.append(tw)
+                changed = True
+        # random syns
+        if not changed and random.random() < p_syn: #we only want to apply change if we did not apply typo
+            sw = synonym_replace(w)
+            if sw:
+                out.append(sw)
+                changed = True
+        if not changed:
+            out.append(w)
+
+    example["text"] = detok.detokenize(out)
     return example
+
