@@ -20,63 +20,59 @@ def initialize_model(args):
     tokenizer = T5Tokenizer.from_pretrained("t5-small")
     model.resize_token_embeddings(len(tokenizer))
 
-    # 可选：从某个 checkpoint 恢复权重
+ 
     if getattr(args, "resume_from_checkpoint", None):
         print(f"Loading model weights from: {args.resume_from_checkpoint}")
         state_dict = torch.load(args.resume_from_checkpoint, map_location=DEVICE)
         model.load_state_dict(state_dict)
 
-    # 先统一全部冻结，后面按 stage 决定解冻哪些部分
+ 
     for p in model.parameters():
         p.requires_grad = False
 
     stage = getattr(args, "stage", 1)   # 默认 stage1，防止没设出错
 
-    # ==================== Stage 1: 只训练 encoder（freeze decoder） ====================
-    # 你之前说的：“stage1: freeze decoder, lr=0.01”
+ 
     if stage == 1:
-        # 解冻 encoder：全部或者最后 N 层
+     
         n = getattr(args, "unfreeze_last_n_encoder_layers", None)
         if n is None:
-            # 全部 encoder 都训练
+           
             for p in model.encoder.parameters():
                 p.requires_grad = True
         else:
-            # 只训练 encoder 的最后 n 层
+        
             blocks = getattr(model.encoder, "block", [])
             for layer in blocks[-n:]:
                 for p in layer.parameters():
                     p.requires_grad = True
 
-        # shared embedding（encoder/decoder 共享的词向量）
-        # 如果希望 encoder 侧也能学，就解冻；decoder 的输出层依然是冻结的 lm_head
+ 
         for p in model.shared.parameters():
             p.requires_grad = True
 
-        # decoder 和 lm_head 保持冻结（前面已经置 False，就不用再写）
-
-    # ==================== Stage 2: 训练 decoder（也可以顺带 encoder） ====================
+ 
     elif stage == 2:
-        # encoder 策略：沿用 unfreeze_last_n_encoder_layers 逻辑
+    
         n = getattr(args, "unfreeze_last_n_encoder_layers", None)
         if n is None:
-            # 想在 stage2 把 encoder 全部也训练起来：
+ 
             for p in model.encoder.parameters():
                 p.requires_grad = True
         else:
-            # 只训练 encoder 的最后 n 层（其余继续冻结）
+   
             blocks = getattr(model.encoder, "block", [])
             for layer in blocks[-n:]:
                 for p in layer.parameters():
                     p.requires_grad = True
 
-        # decoder & lm_head 在 stage2 打开
+        # decoder & lm_head 
         for p in model.decoder.parameters():
             p.requires_grad = True
         for p in model.lm_head.parameters():
             p.requires_grad = True
 
-        # shared embedding 一般也一起训练
+        # shared embedding
         for p in model.shared.parameters():
             p.requires_grad = True
 
@@ -111,11 +107,11 @@ def load_model_from_checkpoint(args, best):
     if not os.path.exists(load_path):
         raise FileNotFoundError(f"Checkpoint not found: {load_path}")
 
-    # ⚠️ 关键：用和训练时完全一样的方式构建模型
-    # （会用 "t5-small" + T5Tokenizer + resize_token_embeddings）
-    from t5_utils import initialize_model, DEVICE  # 你已经在顶部 import 了就不需要再写这一行
+ 
+ 
+    from t5_utils import initialize_model, DEVICE   
 
-    model = initialize_model(args)  # 这里不会再自动加载 checkpoint，因为你现在是手动 load_state_dict
+    model = initialize_model(args)   
     state_dict = torch.load(load_path, map_location=DEVICE)
     model.load_state_dict(state_dict)
 
