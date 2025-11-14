@@ -62,7 +62,7 @@ def save_queries_and_records(sql_queries: List[str], sql_path: str, record_path:
     Helper function to save model generated SQL queries and their associated records
     to the specified paths.
     '''
-    # First save the queries（显式用 utf-8）
+ 
     with open(sql_path, 'w', encoding='utf-8', newline='\n') as f:
         for query in sql_queries:
             f.write(f'{query}\n')
@@ -74,7 +74,7 @@ def save_queries_and_records(sql_queries: List[str], sql_path: str, record_path:
 
 
 def read_queries(sql_path: str):
-    # 读的时候也用 utf-8，跟上面保持一致
+ 
     with open(sql_path, 'r', encoding='utf-8') as f:
         qs = [q.strip() for q in f.readlines()]
     return qs
