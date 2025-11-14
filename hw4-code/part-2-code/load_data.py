@@ -8,7 +8,6 @@ from torch.utils.data import Dataset, DataLoader
 from torch.nn.utils.rnn import pad_sequence
 
 import nltk
-# 原模板已有 punkt，这里静默确保 wordnet 也可用（失败不致命）
 try:
     nltk.data.find("corpora/wordnet")
 except LookupError:
@@ -25,20 +24,13 @@ import torch
 PAD_IDX = 0  # T5 的 pad_token_id == 0
 
 
-# ----------------------------
-# Schema 解析 & 格式化
-# ----------------------------
+
 def parse_schema_to_dict(schema_path="data/flight_database.schema"):
-    """
-    支持两种格式：
-    1) JSON（包含 ents -> {table: {col: {...}}}）
-    2) 旧的行文本：table(col1, col2, ...)
-    返回: {table: {col: "col", ...}, ...}
-    """
+
     with open(schema_path, "r", encoding="utf-8") as f:
         raw = f.read().strip()
 
-    # 优先尝试 JSON
+
     try:
         obj = json.loads(raw)
         if isinstance(obj, dict) and "ents" in obj and isinstance(obj["ents"], dict):
@@ -49,9 +41,9 @@ def parse_schema_to_dict(schema_path="data/flight_database.schema"):
             if out:
                 return out
     except Exception:
-        pass  # 不是 JSON，回退到行解析
+        pass  
 
-    # 回退：解析形如 table(col1, col2, ...)
+ 
     schema_dict = {}
     for line in raw.splitlines():
         line = line.strip()
@@ -68,11 +60,7 @@ def parse_schema_to_dict(schema_path="data/flight_database.schema"):
 
 
 def schema_to_prompt_subset(subset_dict):
-    """
-    把 {table: {col: type}} 转成多行字符串（只保留表:列）：
-    table_a: col1, col2, ...
-    table_b: col1, col2, ...
-    """
+ 
     lines = []
     for table, cols in subset_dict.items():
         col_list = ", ".join(sorted(cols.keys()))
@@ -80,16 +68,11 @@ def schema_to_prompt_subset(subset_dict):
     return "\n".join(lines)
 
 
-# ----------------------------
-# NL → 相关表筛选（可选）
-# ----------------------------
+ 
 lemmatizer = WordNetLemmatizer()
 
 def get_relevant_tables(nl_query, schema_dict, tokenizer, max_model_tokens):
-    """
-    基于非常轻量的词/词形重叠对表/列打分，并在 token 预算内选择若干表及其“更相关”的列。
-    max_model_tokens 为 schema 文本预算（不含 prompt 其它部分）。
-    """
+ 
     if max_model_tokens <= 0:
         return {}
 
@@ -98,8 +81,7 @@ def get_relevant_tables(nl_query, schema_dict, tokenizer, max_model_tokens):
         nl_lemmas = set(lemmatizer.lemmatize(w) for w in nl_words)
     except Exception:
         nl_lemmas = set(nl_words)
-
-    # 表打分 + 每表列打分
+ 
     table_scores = []
     per_table_col_scores = {}
     for table, cols in schema_dict.items():
@@ -120,7 +102,7 @@ def get_relevant_tables(nl_query, schema_dict, tokenizer, max_model_tokens):
                 col_lemmas = set(col_words)
             cscore = 0.5 * sum(1 for w in col_words if w in nl_words) + 0.5 * len(col_lemmas & nl_lemmas)
             col_scored.append((cscore, col))
-            tscore += 0.05 * cscore  # 列相关性给表一个微弱加成，利于排序
+            tscore += 0.05 * cscore  
 
         col_scored.sort(reverse=True, key=lambda x: x[0])
         per_table_col_scores[table] = col_scored
@@ -145,7 +127,7 @@ def get_relevant_tables(nl_query, schema_dict, tokenizer, max_model_tokens):
                 break
 
         if not current_cols:
-            # 兜底：尝试整表
+            
             schema_text_full = schema_to_prompt_subset({table: schema_dict[table]})
             need_full = len(tokenizer.tokenize(schema_text_full))
             if tokens_used + need_full <= max_model_tokens:
@@ -158,9 +140,7 @@ def get_relevant_tables(nl_query, schema_dict, tokenizer, max_model_tokens):
     return selected
 
 
-# ----------------------------
-# Prompt 模板
-# ----------------------------
+
 PROMPT_TEMPLATE = """NL Query: "{query}"
 
 Relevant schema:
@@ -169,10 +149,7 @@ Relevant schema:
 SQL:
 """
 
-
-# ----------------------------
-# 读取辅助
-# ----------------------------
+ 
 def load_lines(path):
     with open(path, 'r', encoding="utf-8") as f:
         lines = f.readlines()
@@ -180,18 +157,10 @@ def load_lines(path):
     return lines
 
 
-# ----------------------------
-# Dataset
-# ----------------------------
+ 
 class T5Dataset(Dataset):
     def __init__(self, data_folder, split, encoder_max_len=512, decoder_max_len=128, use_relevant_schema=True, schema_budget=320):
-        """
-        data_folder: 里应包含 train/dev/test 的 .nl 与 .sql（test 无 .sql）
-        split: "train" | "dev" | "test"
-        encoder_max_len / decoder_max_len: 截断长度
-        use_relevant_schema: 是否按 NL 选择相关表
-        schema_budget: 分配给 schema 文本的 token 预算（粗估），最终仍受 encoder_max_len 控制
-        """
+ 
         self.split = split
         self.data_folder = data_folder
         self.encoder_max_len = encoder_max_len
@@ -201,7 +170,7 @@ class T5Dataset(Dataset):
 
         # tokenizer
         self.tokenizer = T5TokenizerFast.from_pretrained("t5-small")
-        # T5 没有专用 BOS，常用做法是使用 pad_token（id=0）作为 decoder_start_token
+ 
         self.bos_id = self.tokenizer.pad_token_id if self.tokenizer.pad_token_id is not None else PAD_IDX
 
         # schema
@@ -225,13 +194,13 @@ class T5Dataset(Dataset):
         if split != "test":
             sql_path = os.path.join(data_folder, f"{split}.sql")
             sql_lines = load_lines(sql_path)
-            assert len(nl_lines) == len(sql_lines), f"NL/SQL 数量不一致: {len(nl_lines)} vs {len(sql_lines)}"
+            assert len(nl_lines) == len(sql_lines), f"NL/SQL not match: {len(nl_lines)} vs {len(sql_lines)}"
 
         samples = []
         for i, nl in enumerate(nl_lines):
             question_text = self.clean_nl(nl)
 
-            # 计算 prompt 中非 schema 部分占用，以便给 schema 预留预算
+ 
             prefix_text = PROMPT_TEMPLATE.format(query=question_text, schema="")
             prefix_ids = tokenizer(
                 prefix_text,
@@ -241,14 +210,13 @@ class T5Dataset(Dataset):
                 return_attention_mask=False
             )["input_ids"]
             room_for_schema = max(0, self.encoder_max_len - len(prefix_ids))
-            # 再和 schema_budget 取较小值，避免 schema 膨胀
+ 
             room_for_schema = min(room_for_schema, self.schema_budget)
-
-            # 选择 schema 子集
+ 
             if self.use_relevant_schema:
                 subset = get_relevant_tables(question_text, self.schema_dict, tokenizer, max_model_tokens=room_for_schema)
                 if not subset:
-                    subset = self.schema_dict  # 兜底：放全部
+                    subset = self.schema_dict   
             else:
                 subset = self.schema_dict
 
@@ -303,24 +271,21 @@ def _pad_1d(batch_tensors, pad_value=PAD_IDX):
     return pad_sequence(batch_tensors, batch_first=True, padding_value=pad_value)
 
 def normal_collate_fn(batch):
-    """
-    训练/验证 collate：返回 5 个对象
-    encoder_ids, encoder_mask, decoder_inputs, decoder_targets, initial_decoder_inputs
-    """
+
     enc_ids = [b["enc_ids"] for b in batch]
     enc_mask = [b["enc_mask"] for b in batch]
     dec_targets = [b["dec_ids"] for b in batch]
-    # 防御：确保没有 None（test 不会走这里）
+
     assert all(t is not None for t in dec_targets), "normal_collate_fn 不应在 test split 上使用"
 
     enc_ids_pad = _pad_1d(enc_ids, PAD_IDX)    # encoder PAD=0
     enc_mask_pad = _pad_1d(enc_mask, 0)        # mask PAD=0
 
-    # T5 decoder 起始用 pad_token_id 作为 BOS
+
     BOS = PAD_IDX
     decoder_inputs, decoder_targets = [], []
     for tgt in dec_targets:
-        # teacher forcing：把 gold 右移一位，并在最前面放 BOS
+        # teacher forcing：
         inp = torch.cat([torch.tensor([BOS], dtype=torch.long), tgt[:-1]], dim=0)
         decoder_inputs.append(inp)
         decoder_targets.append(tgt)
@@ -328,22 +293,19 @@ def normal_collate_fn(batch):
     decoder_inputs_pad = _pad_1d(decoder_inputs, PAD_IDX)
     decoder_targets_pad = _pad_1d(decoder_targets, PAD_IDX)
 
-    # labels 的 PAD 置为 -100，loss 忽略
+
     decoder_targets_pad = decoder_targets_pad.masked_fill(
         decoder_targets_pad == PAD_IDX, -100
     )
 
-    # 评估用：decoder 初始喂一个 BOS
+    
     initial_decoder_inputs = torch.full((len(batch), 1), fill_value=BOS, dtype=torch.long)
 
     return enc_ids_pad, enc_mask_pad, decoder_inputs_pad, decoder_targets_pad, initial_decoder_inputs
 
 
 def test_collate_fn(batch):
-    """
-    推理 collate：返回 3 个对象
-    encoder_ids, encoder_mask, initial_decoder_inputs
-    """
+
     enc_ids = [b["enc_ids"] for b in batch]
     enc_mask = [b["enc_mask"] for b in batch]
     enc_ids_pad = _pad_1d(enc_ids, PAD_IDX)
@@ -353,9 +315,7 @@ def test_collate_fn(batch):
     return enc_ids_pad, enc_mask_pad, initial_decoder_inputs
 
 
-# ----------------------------
-# DataLoader 构造
-# ----------------------------
+
 def get_dataloader(batch_size, split, encoder_max_len=512, decoder_max_len=128, num_workers=None):
     data_folder = 'data'
     dset = T5Dataset(
@@ -366,7 +326,7 @@ def get_dataloader(batch_size, split, encoder_max_len=512, decoder_max_len=128, 
     shuffle = split == "train"
     collate_fn = normal_collate_fn if split != "test" else test_collate_fn
 
-    # 更稳的 DataLoader 配置（Windows 关 persistent_workers）
+ 
     is_windows = platform.system().lower().startswith("win")
     auto_workers = min(4, os.cpu_count() or 1)
     num_workers = auto_workers if num_workers is None else num_workers
@@ -390,7 +350,7 @@ def load_t5_data(batch_size, test_batch_size, encoder_max_len=512, decoder_max_l
     train_loader = get_dataloader(
         batch_size, "train",
         encoder_max_len=encoder_max_len, decoder_max_len=decoder_max_len,
-        num_workers=None  # 训练阶段用自动选择
+        num_workers=None  
     )
     dev_loader = get_dataloader(
         test_batch_size, "dev",
@@ -405,16 +365,8 @@ def load_t5_data(batch_size, test_batch_size, encoder_max_len=512, decoder_max_l
     return train_loader, dev_loader, test_loader
 
 
-# ----------------------------
-# Prompting 数据（原 TODO）
-# ----------------------------
 def load_prompting_data(data_folder):
-    """
-    简单读入原始 NL / SQL 文本，便于构造 few-shot / in-context 数据。
-    返回:
-        train_x, train_y, dev_x, dev_y, test_x
-        其中 *_x 为 NL 列表，*_y 为 SQL 列表（test 没有 y）
-    """
+
     train_x = load_lines(os.path.join(data_folder, "train.nl"))
     train_y = load_lines(os.path.join(data_folder, "train.sql"))
     dev_x = load_lines(os.path.join(data_folder, "dev.nl"))
