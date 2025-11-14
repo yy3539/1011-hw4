@@ -15,7 +15,7 @@ from utils import compute_metrics, save_queries_and_records
 DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 IGNORE_INDEX = -100 
 TOKENIZER = T5Tokenizer.from_pretrained("t5-small")
-PAD_IDX = TOKENIZER.pad_token_id  # 更稳妥：用 tokenizer 的 pad_token_id
+PAD_IDX = TOKENIZER.pad_token_id   
 
 def get_args():
     '''
@@ -120,14 +120,13 @@ def train_epoch(args, model, train_loader, optimizer, scheduler):
             attention_mask=encoder_mask,
             decoder_input_ids=decoder_input,
         )['logits']  # (B, T, V)
-
-        # ====== 不再手工索引，用标准 flatten+ignore_index=-100 的写法 ======
+ 
         vocab_size = logits.size(-1)
         loss = criterion(
             logits.view(-1, vocab_size),      # (B*T, V)
             decoder_targets.view(-1)          # (B*T,)
         )
-        # ===============================================================
+ 
 
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
@@ -136,7 +135,6 @@ def train_epoch(args, model, train_loader, optimizer, scheduler):
             scheduler.step()
 
         with torch.no_grad():
-            # 统计真正参与 loss 的 token 数（label != IGNORE_INDEX）
             valid = decoder_targets != IGNORE_INDEX
             num_tokens = valid.sum().item()
             total_loss += loss.item() * num_tokens
@@ -288,30 +286,30 @@ def test_inference(args, model, test_loader, model_sql_path, model_record_path):
     print(f"Test inference done. SQL queries saved to {model_sql_path}, records saved to {model_record_path}")
 
 class Args:
-    # ----- Stage2: 只训练 decoder -----
-    finetune = True
-    stage = 2          # ★★★ 关键：切换到 stage 2
-    freeze_decoder = False   # 这个字段在 stage 2 分支里其实不用，但你可以设成 False 以防以后用到
 
-    # Stage2 我们只训 decoder，所以 unfreeze_last_n_encoder_layers 在目前代码里不会再用到
+    finetune = True
+    stage = 2          
+    freeze_decoder = False  
+
+ 
     unfreeze_last_n_encoder_layers = None
 
     optimizer_type = "AdamW"
-    learning_rate = 1e-4      # ★★★ 建议用小一点的 lr，之前你就是这么设的
+    learning_rate = 1e-4      
     weight_decay = 0.01
 
-    scheduler_type = "linear"  # 你愿意的话可以改成 "cosine"
+    scheduler_type = "linear"  
     num_warmup_epochs = 1
-    max_n_epochs = 60          # Stage2 可以多训一点
-    patience_epochs = 5        # 早停
+    max_n_epochs = 60          
+    patience_epochs = 5        
 
     batch_size = 16
     test_batch_size = 16
 
     use_wandb = False
-    experiment_name = "hw4_q7_stage2"  # ★★★ 换个 experiment 名，避免覆盖 stage1 的 ckpt
+    experiment_name = "hw4_q7_stage2"   
 
-    # ★★★ 从 Stage1 的 best_model 加载权重
+ 
     resume_from_checkpoint = "checkpoints/ft_experiments/hw4_q7_stage1/best_model.pt"
 
 
@@ -325,55 +323,47 @@ def main():
     # Load the data
     train_loader, dev_loader, test_loader = load_t5_data(args.batch_size, args.test_batch_size)
 
-        # 初始化模型（会根据 args.resume_from_checkpoint 加载 Stage1 权重）
+ 
     model = initialize_model(args)
 
-    # ===== 根据 stage 决定训练哪些部分 =====
+ 
     if getattr(args, "stage", 1) == 1 and getattr(args, "freeze_decoder", True):
-        # ---------- Stage1: 只训练 encoder ----------
+        # ---------- Stage1:  encoder ----------
         print(">> Stage 1: encoder-only finetuning, freezing decoder and lm_head")
         for p in model.decoder.parameters():
             p.requires_grad = False
         for p in model.lm_head.parameters():
             p.requires_grad = False
-        # encoder 的 requires_grad 逻辑在 initialize_model 里已经设好
+ 
 
     elif getattr(args, "stage", 1) == 2:
-        # ---------- Stage2: 只训练 decoder ----------
+        # ---------- Stage2:  decoder ----------
         print(">> Stage 2: decoder-only finetuning, freezing encoder")
 
-        # 先全部冻结，避免漏网之鱼
+ 
         for p in model.parameters():
             p.requires_grad = False
 
-        # 解冻 decoder + lm_head
+ 
         for p in model.decoder.parameters():
             p.requires_grad = True
         for p in model.lm_head.parameters():
             p.requires_grad = True
 
-        # 【可选】shared embedding 要不要训？
-        # 如果你想“严格只动 decoder block”，可以保持 shared 冻结；
-        # 如果你希望 decoder 的输入 embedding 也一起学习，可以把下面这段打开：
-        #
-        # for p in model.shared.parameters():
-        #     p.requires_grad = True
+ 
 
     else:
         raise ValueError(f"Unknown stage: {args.stage}")
-    # ================================================
-
-    # 再根据当前 requires_grad 设置 optimizer
+ 
     optimizer, scheduler = initialize_optimizer_and_scheduler(args, model, len(train_loader))
 
 
-    # ===================== Train =====================
+ 
     print("Start training...")
     train(args, model, train_loader, dev_loader, optimizer, scheduler)
     print("Training finished.")
 
-    # ===================== Evaluate (load best checkpoint) =====================
-    # 训练过程中已经保存了 best_model.pt，这里重新加载最优模型再评估
+ 
     model = load_model_from_checkpoint(args, best=True)
     model.eval()
     
