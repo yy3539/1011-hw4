@@ -61,27 +61,23 @@ def save_queries_and_records(sql_queries: List[str], sql_path: str, record_path:
     '''
     Helper function to save model generated SQL queries and their associated records
     to the specified paths.
-
-    Inputs: 
-        * sql_queries (List[str]): The list of SQL queries to save
-        * sql_path (str): Path to save SQL queries
-        * record_path (str): Path to save database records associated with queries
     '''
-    # First save the queries
-    with open(sql_path, 'w') as f:
+    # First save the queries（显式用 utf-8）
+    with open(sql_path, 'w', encoding='utf-8', newline='\n') as f:
         for query in sql_queries:
             f.write(f'{query}\n')
 
     # Next compute and save records
-    records, error_msgs = compute_records(sql_queries)    
+    records, error_msgs = compute_records(sql_queries)
     with open(record_path, 'wb') as f:
         pickle.dump((records, error_msgs), f)
 
+
 def read_queries(sql_path: str):
-    with open(sql_path, 'r') as f:
+    # 读的时候也用 utf-8，跟上面保持一致
+    with open(sql_path, 'r', encoding='utf-8') as f:
         qs = [q.strip() for q in f.readlines()]
     return qs
-
 def compute_records(processed_qs: List[str]):
     '''
     Helper function for computing the records associated with each SQL query in the
